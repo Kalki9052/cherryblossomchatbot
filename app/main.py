@@ -602,8 +602,13 @@ class ChatRequest(PydanticBaseModel):
 
 @app.post("/chatbot")
 async def chatbot_endpoint(request: ChatRequest):
-    # Compose prompt from history
-    prompt = "You are Blossom, a friendly and supportive companion. Respond like a caring friend.\n" + "\n".join([f"{msg.role}: {msg.content}" for msg in request.history])
+    # Compose improved prompt for precise, short, mind-assistant replies
+    prompt = (
+        "You are MindBlossom, an assistant of the user's mind. "
+        "Reply in a very concise, precise, and insightful way, as if you are the user's inner assistant. "
+        "Keep your answers short and to the point.\n"
+        + "\n".join([f"{msg.role}: {msg.content}" for msg in request.history])
+    )
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
         model="llama-3.3-70b-versatile",
