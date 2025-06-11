@@ -32,7 +32,7 @@ app.add_middleware(
 models.Base.metadata.create_all(bind=database.engine)
 
 # Initialize Groq client
-client = Groq(api_key="your_api_key_here")
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 class JournalEntry(BaseModel):
     content: str
