@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from datetime import datetime
@@ -513,7 +513,7 @@ async def chat_page():
           .bubble { max-width: 80%; padding: 12px 18px; border-radius: 18px; font-size: 1.1em; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
           .user { align-self: flex-end; background: linear-gradient(90deg, #ffb7c5 0%, #d81b60 100%); color: white; border-bottom-right-radius: 4px; }
           .bot { align-self: flex-start; background: #f3e5f5; color: #d81b60; border-bottom-left-radius: 4px; border: 1px solid #f8bbd0; }
-          form { display: flex; gap: 8px; padding: 18px 24px; background: rgba(255,255,255,0.95); border-top: 1px solid #f8bbd0; }
+          form, .input-row { display: flex; gap: 8px; padding: 18px 24px; background: rgba(255,255,255,0.95); border-top: 1px solid #f8bbd0; }
           input[type=text] { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #e0b7c1; font-size: 1.1em; }
           button { background: linear-gradient(90deg, #ffb7c5 0%, #d81b60 100%); color: white; border: none; padding: 10px 24px; border-radius: 8px; font-size: 1.1em; cursor: pointer; }
           button:hover { background: linear-gradient(90deg, #d81b60 0%, #ffb7c5 100%); }
@@ -525,45 +525,89 @@ async def chat_page():
       <body>
         <div class="chat-container">
           <h1>Cherry Blossom Chat</h1>
-          <div class="messages" id="messages">
-    """
-    for msg in chat_history:
-        if msg['role'] == 'user':
-            chat_html += f"<div class='bubble user'>You: {msg['content']}</div>"
-        else:
-            chat_html += f"<div class='bubble bot'>Blossom: {msg['content']}</div>"
-    chat_html += """
+          <div class="messages" id="messages"></div>
+          <div class="input-row">
+            <input type="text" id="user-input" placeholder="Type your message..." autocomplete="off" required />
+            <button onclick="sendMessage()">Send</button>
+            <button onclick="resetChat()" style="background:#f8bbd0;color:#d81b60;">Reset</button>
           </div>
-          <form action="/chat" method="post" autocomplete="off">
-            <input type="text" name="message" placeholder="Type your message..." autocomplete="off" required />
-            <button type="submit">Send</button>
-          </form>
         </div>
         <div class="nav">
           <a href="/">Journal</a> | <a href="/entries">Entries</a>
         </div>
         <script>
-          // Auto-scroll to bottom
-          var messagesDiv = document.getElementById('messages');
-          messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          function renderMessages() {
+            const messagesDiv = document.getElementById('messages');
+            messagesDiv.innerHTML = '';
+            let chat = JSON.parse(localStorage.getItem('blossom_chat') || '[]');
+            for (const msg of chat) {
+              let div = document.createElement('div');
+              div.className = 'bubble ' + (msg.role === 'user' ? 'user' : 'bot');
+              div.textContent = (msg.role === 'user' ? 'You: ' : 'Blossom: ') + msg.content;
+              messagesDiv.appendChild(div);
+            }
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+          }
+          function sendMessage() {
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            if (!text) return;
+            let chat = JSON.parse(localStorage.getItem('blossom_chat') || '[]');
+            chat.push({role: 'user', content: text});
+            localStorage.setItem('blossom_chat', JSON.stringify(chat));
+            renderMessages();
+            input.value = '';
+            fetch('/chatbot', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({history: chat})
+            })
+            .then(r => r.json())
+            .then(data => {
+              chat.push({role: 'bot', content: data.reply});
+              localStorage.setItem('blossom_chat', JSON.stringify(chat));
+              renderMessages();
+            });
+          }
+          function resetChat() {
+            localStorage.removeItem('blossom_chat');
+            renderMessages();
+          }
+          // Enter key sends message
+          document.addEventListener('DOMContentLoaded', function() {
+            renderMessages();
+            document.getElementById('user-input').addEventListener('keydown', function(e) {
+              if (e.key === 'Enter') {
+                sendMessage();
+              }
+            });
+          });
         </script>
       </body>
     </html>
     """
     return chat_html
 
-@app.post("/chat", response_class=HTMLResponse)
-async def chat_post(request: Request):
-    form = await request.form()
-    user_message = form.get("message")
-    chat_history.append({"role": "user", "content": user_message})
-    # Generate response from LLM
-    prompt = "You are Blossom, a friendly and supportive companion. Respond like a caring friend.\n" + "\n".join([f"{msg['role']}: {msg['content']}" for msg in chat_history])
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel as PydanticBaseModel
+from typing import List
+
+class ChatMessage(PydanticBaseModel):
+    role: str
+    content: str
+
+class ChatRequest(PydanticBaseModel):
+    history: List[ChatMessage]
+
+@app.post("/chatbot")
+async def chatbot_endpoint(request: ChatRequest):
+    # Compose prompt from history
+    prompt = "You are Blossom, a friendly and supportive companion. Respond like a caring friend.\n" + "\n".join([f"{msg.role}: {msg.content}" for msg in request.history])
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
         model="llama-3.3-70b-versatile",
         stream=False,
     )
     bot_reply = chat_completion.choices[0].message.content
-    chat_history.append({"role": "bot", "content": bot_reply})
-    return await chat_page() 
+    return JSONResponse({"reply": bot_reply}) 
