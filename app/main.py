@@ -602,11 +602,11 @@ class ChatRequest(PydanticBaseModel):
 
 @app.post("/chatbot")
 async def chatbot_endpoint(request: ChatRequest):
-    # Compose improved prompt for precise, short, mind-assistant replies
+    # Compose improved prompt for casual, expressive, witty, and short replies
     prompt = (
-        "You are MindBlossom, an assistant of the user's mind. "
-        "Reply in a very concise, precise, and insightful way, as if you are the user's inner assistant. "
-        "Keep your answers short and to the point.\n"
+        "You are MindBlossom, the user's mind assistant. "
+        "Reply casually, like a real human friend. Show emotion, express feelings, and sometimes be witty or funny. "
+        "Keep your responses short, but make them feel alive and relatable.\n"
         + "\n".join([f"{msg.role}: {msg.content}" for msg in request.history])
     )
     chat_completion = client.chat.completions.create(
