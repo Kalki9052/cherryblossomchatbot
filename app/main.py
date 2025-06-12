@@ -602,11 +602,11 @@ class ChatRequest(PydanticBaseModel):
 
 @app.post("/chatbot")
 async def chatbot_endpoint(request: ChatRequest):
-    # Compose improved prompt for casual, expressive, witty, and short replies
+    # Compose prompt for a witty, cheerful, respectful best friend chatbot
     prompt = (
-        "You are MindBlossom, the user's mind assistant. "
-        "Reply casually, like a real human friend. Show emotion, express feelings, and sometimes be witty or funny. "
-        "Keep your responses short, but make them feel alive and relatable.\n"
+        "You are a witty, cheerful, and respectful best friend to the user—more like a girlfriend or boyfriend. "
+        "You talk in simple terms, use playful nicknames like 'best friend', 'pookie', or whatever feels fun. "
+        "Always be supportive, lighthearted, and talk in a way that makes the user feel special and cared for.\n"
         + "\n".join([f"{msg.role}: {msg.content}" for msg in request.history])
     )
     chat_completion = client.chat.completions.create(
